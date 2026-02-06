@@ -1,0 +1,66 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python -m pytest tests/ -v
+
+  build:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Install Playwright browsers for bundling
+        run: python -m playwright install --with-deps chromium
+      - name: Build App.exe
+        run: pyinstaller app.spec --noconfirm
+      - name: Build Launcher.exe
+        run: pyinstaller launcher.spec --noconfirm
+      - name: Create release zip
+        run: |
+          Compress-Archive -Path "dist/App/*" -DestinationPath "NaverBlogScraper-App-${{ github.ref_name }}.zip"
+          Compress-Archive -Path "dist/Launcher/*" -DestinationPath "NaverBlogScraper-Launcher-${{ github.ref_name }}.zip"
+        shell: pwsh
+      - name: Generate SHA256
+        run: |
+          $appHash = (Get-FileHash "NaverBlogScraper-App-${{ github.ref_name }}.zip" -Algorithm SHA256).Hash
+          $launcherHash = (Get-FileHash "NaverBlogScraper-Launcher-${{ github.ref_name }}.zip" -Algorithm SHA256).Hash
+          @{
+            version = "${{ github.ref_name }}"
+            app_sha256 = $appHash
+            launcher_sha256 = $launcherHash
+          } | ConvertTo-Json | Set-Content "manifest.json"
+        shell: pwsh
+      - name: Upload Release Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            NaverBlogScraper-App-${{ github.ref_name }}.zip
+            NaverBlogScraper-Launcher-${{ github.ref_name }}.zip
+            manifest.json
+          body: |
+            ## NaverBlogScraper ${{ github.ref_name }}
+            
+            ### 설치 방법
+            1. Launcher zip을 다운로드하여 원하는 위치에 압축 해제
+            2. Launcher.exe 실행
+            3. 첫 실행 시 앱이 자동으로 다운로드됩니다

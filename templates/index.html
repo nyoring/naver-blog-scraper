@@ -1,0 +1,983 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>네이버 블로그 스크래퍼</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        accent: '#00C853',
+                        primary: '#000000',
+                        'text-sub': '#333333',
+                    },
+                    fontFamily: {
+                        sans: ['Pretendard', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+                        mono: ['Courier New', 'monospace'],
+                    },
+                    boxShadow: {
+                        'brutal': '4px 4px 0 black',
+                        'brutal-accent': '4px 4px 0 #00C853',
+                        'brutal-sm': '4px 4px 0 rgba(0,0,0,0.2)',
+                    }
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer components {
+            .kb-pill {
+                @apply inline-flex items-center gap-2 px-4 py-2 bg-black border border-black rounded-none text-[13px] text-white font-medium;
+            }
+            .kb-pill-type {
+                @apply font-extrabold text-accent text-[11px] uppercase;
+            }
+            .kb-pill-remove {
+                @apply cursor-pointer text-[#888] text-base leading-none transition-colors duration-200 bg-transparent border-none p-0 hover:text-[#f44336];
+            }
+            .spinner {
+                @apply inline-block w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-[spin_0.6s_linear_infinite] align-middle mr-2;
+            }
+            .num-cell {
+                @apply text-center whitespace-nowrap font-bold;
+            }
+            .url-cell {
+                @apply max-w-[200px] break-all;
+            }
+            .url-cell a {
+                @apply text-black underline decoration-1 underline-offset-4 hover:text-accent hover:bg-black hover:no-underline hover:px-1 hover:py-0.5;
+            }
+            .content-cell {
+                @apply max-w-[400px] max-h-[100px] overflow-hidden line-clamp-4 leading-relaxed;
+            }
+        }
+    </style>
+</head>
+
+<body class="font-sans bg-white text-black min-h-screen">
+    <div class="max-w-[1200px] mx-auto px-4 py-6 md:px-4 md:py-4">
+        <!-- Header -->
+        <div class="pb-6 border-b-[3px] border-black mb-8">
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+                <div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <div class="w-3 h-3 bg-accent border border-black transform rotate-45"></div>
+                        <span class="text-[10px] font-bold tracking-[0.2em] text-[#666] uppercase">B-Scraper v2.0</span>
+                    </div>
+                    <h1 class="text-3xl md:text-4xl font-black text-black tracking-tight leading-none group">
+                        네이버 블로그 <span class="relative inline-block text-accent">
+                            스크래퍼
+                            <span class="absolute bottom-1 left-0 w-full h-[8px] bg-black/5 -z-10 skew-x-12"></span>
+                        </span>
+                    </h1>
+                </div>
+                <div class="md:text-right">
+                    <p
+                        class="text-[13px] font-medium text-[#444] leading-relaxed max-w-sm ml-auto relative md:pl-0 pl-3 md:border-l-0 border-l-2 border-accent">
+                        <b>키워드</b>와 <b>기간</b>을 설정하여<br class="hidden md:block">
+                        원하는 블로그 게시물을 자동으로 수집하세요.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Search Card -->
+        <div class="bg-white border-2 border-black p-5 shadow-[4px_4px_0_0_black] mb-6 relative rounded-none">
+            <div class="flex flex-col md:flex-row gap-4 items-end">
+                <!-- Keyword Input Group -->
+                <div class="flex-1 w-full md:w-auto">
+                    <div class="flex justify-between items-end mb-2">
+                        <label for="keyword"
+                            class="text-xs font-black text-black uppercase tracking-wider flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-accent inline-block border border-black"></span> 키워드
+                        </label>
+                        <!-- KB Toggle -->
+                        <div class="kb-toggle text-[11px] font-bold text-[#666] cursor-pointer select-none transition-all duration-200 hover:text-accent group flex items-center gap-1 bg-black/5 px-2 py-0.5"
+                            id="kbToggle" onclick="toggleKeywordBuilder()">
+                            <span>고급 검색</span>
+                            <span
+                                class="kb-arrow inline-block transition-transform duration-200 group-[.active]:rotate-180">▼</span>
+                        </div>
+                    </div>
+                    <input type="text" id="keyword" placeholder="검색어 입력"
+                        class="w-full px-4 border border-black rounded-none text-sm bg-white text-black transition-all duration-200 outline-none h-12 placeholder:text-gray-400 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] focus:-translate-y-1 focus:-translate-x-1">
+                </div>
+
+                <!-- Date Inputs -->
+                <div class="flex gap-3 w-full md:w-auto">
+                    <div class="flex-1 md:w-36">
+                        <label for="startDate"
+                            class="block text-xs font-black text-black mb-2 uppercase tracking-wider flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-accent inline-block border border-black"></span> 시작일
+                        </label>
+                        <input type="date" id="startDate"
+                            class="w-full px-2 border border-black rounded-none text-sm bg-white text-black transition-all duration-200 outline-none h-12 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] focus:-translate-y-1 focus:-translate-x-1 text-center font-bold">
+                    </div>
+                    <div class="flex-1 md:w-36">
+                        <label for="endDate"
+                            class="block text-xs font-black text-black mb-2 uppercase tracking-wider flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 bg-accent inline-block border border-black"></span> 종료일
+                        </label>
+                        <input type="date" id="endDate"
+                            class="w-full px-2 border border-black rounded-none text-sm bg-white text-black transition-all duration-200 outline-none h-12 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] focus:-translate-y-1 focus:-translate-x-1 text-center font-bold">
+                    </div>
+                </div>
+
+                <!-- Search Button -->
+                <div class="w-full md:w-auto">
+                    <button
+                        class="w-full md:w-auto px-8 h-12 border-2 border-black rounded-none text-base font-black cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-black text-white hover:bg-accent hover:text-black hover:shadow-[4px_4px_0_0_black] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0 active:translate-y-0 active:shadow-none disabled:bg-[#ccc] disabled:border-[#ccc] disabled:cursor-not-allowed disabled:text-[#888]"
+                        id="searchBtn" onclick="searchCount()">
+                        조회하기
+                    </button>
+                </div>
+            </div>
+
+            <!-- KB Section (Advanced Search) -->
+            <div class="kb-section hidden mt-0 pt-0 border-t-0 border-black transition-all duration-300 overflow-hidden [&.visible]:mt-5 [&.visible]:pt-5 [&.visible]:border-t-2 [&.visible]:border-dashed [&.visible]:border-black [&.visible]:block"
+                id="kbSection">
+                <!-- Base Keyword -->
+                <div class="mb-4">
+                    <label for="kbBase" class="block text-xs font-black text-black mb-2 uppercase tracking-wider">기본 키워드
+                        <span class="text-[#888] font-normal normal-case">(수정 가능)</span></label>
+                    <input type="text" id="kbBase" oninput="updateKeyword()"
+                        class="w-full px-3 border border-black rounded-none text-sm bg-white text-black transition-all duration-200 outline-none h-10 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] focus:-translate-x-0.5 focus:-translate-y-0.5">
+                </div>
+
+                <div class="flex flex-col md:flex-row gap-3 items-end mb-3">
+                    <div class="w-full md:w-32">
+                        <label for="kbOperator"
+                            class="block text-xs font-black text-black mb-2 uppercase tracking-wider">연산자</label>
+                        <select id="kbOperator"
+                            class="w-full px-2 border border-black rounded-none text-xs bg-white text-black outline-none h-10 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] font-bold">
+                            <option value="exact">정확히 ("")</option>
+                            <option value="include">포함 (+)</option>
+                            <option value="exclude">제외 (-)</option>
+                            <option value="or">OR (|)</option>
+                        </select>
+                    </div>
+                    <div class="flex-1 w-full">
+                        <label for="kbValue"
+                            class="block text-xs font-black text-black mb-2 uppercase tracking-wider">추가할 단어</label>
+                        <div class="flex gap-2">
+                            <input type="text" id="kbValue" placeholder="단어 입력" onkeydown="handleKbEnter(event)"
+                                class="flex-1 px-3 border border-black rounded-none text-sm bg-white text-black outline-none h-10 focus:border-2 focus:border-black focus:shadow-[4px_4px_0_0_#00C853] focus:-translate-x-0.5 focus:-translate-y-0.5">
+                            <button
+                                class="px-5 h-10 border border-black rounded-none text-xs font-black cursor-pointer transition-all duration-200 uppercase bg-white text-black hover:bg-black hover:text-white hover:shadow-[4px_4px_0_0_#00C853] hover:-translate-x-0.5 hover:-translate-y-0.5"
+                                onclick="addCondition()">추가</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pills -->
+                <div class="flex flex-wrap gap-2 mb-3 min-h-0" id="kbPills"></div>
+
+                <!-- Preview -->
+                <div class="relative mt-2">
+                    <div
+                        class="inline-block bg-black text-white text-[10px] font-bold px-2 py-0.5 absolute -top-3 right-2 border-2 border-black">
+                        QUERY PREVIEW</div>
+                    <div class="p-3 bg-[#f0f0f0] border border-black rounded-none text-xs text-black break-all min-h-[44px] items-center flex leading-relaxed font-mono font-bold"
+                        id="kbPreview"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Options Card -->
+        <div
+            class="bg-white border-2 border-black p-0 shadow-none mb-8 relative rounded-none hover:shadow-[4px_4px_0_0_rgba(0,0,0,0.1)] transition-shadow duration-200">
+            <!-- Toggle Header -->
+            <div class="flex justify-between items-center p-4 cursor-pointer select-none bg-white hover:bg-[#fafafa] transition-colors group border-b-0 border-black [&.active]:border-b-2"
+                id="fieldToggle" onclick="toggleFieldSelection()">
+                <div class="flex items-center gap-3">
+                    <div
+                        class="w-8 h-8 flex items-center justify-center bg-black text-white font-bold text-lg rounded-none group-hover:bg-accent group-hover:text-black transition-colors">
+                        ⚙</div>
+                    <div>
+                        <span class="text-sm font-black text-black uppercase tracking-wide block">Scraping
+                            Settings</span>
+                        <span class="text-[10px] text-[#666] font-medium block mt-0.5">수집할 항목과 범위를 선택하세요</span>
+                    </div>
+                </div>
+                <div
+                    class="w-8 h-8 border-2 border-black flex items-center justify-center bg-white group-hover:bg-black group-hover:text-white transition-colors">
+                    <span
+                        class="kb-arrow inline-block transition-transform duration-200 group-[.active]:rotate-180 text-xs font-bold">▼</span>
+                </div>
+            </div>
+
+            <!-- Field Selection Content -->
+            <div class="hidden p-6 bg-[#f8f8f8] [&.visible]:block" id="fieldSection">
+                <div class="flex flex-col md:flex-row gap-8">
+                    <div class="flex-1">
+                        <div
+                            class="text-xs font-black text-black mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <span class="w-2 h-2 bg-black"></span> 수집 항목
+                        </div>
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="fieldCheckboxes">
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="title" checked disabled
+                                    class="accent-black w-4 h-4 rounded-none ring-0 ring-offset-0 focus:ring-0"> 제목 (필수)
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="url" checked class="accent-black w-4 h-4 rounded-none">
+                                URL
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="date" checked class="accent-black w-4 h-4 rounded-none">
+                                작성일
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="author" checked class="accent-black w-4 h-4 rounded-none">
+                                작성자
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="blog_name" checked
+                                    class="accent-black w-4 h-4 rounded-none"> 블로그명
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="likes" checked class="accent-black w-4 h-4 rounded-none">
+                                공감수
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-2 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-transparent hover:border-black hover:bg-white transition-all">
+                                <input type="checkbox" value="comments" checked
+                                    class="accent-black w-4 h-4 rounded-none"> 댓글수
+                            </label>
+                        </div>
+                    </div>
+
+                    <div class="w-px bg-black/10 hidden md:block"></div>
+
+                    <div class="md:w-64">
+                        <div
+                            class="text-xs font-black text-black mb-3 uppercase tracking-wider flex items-center gap-2">
+                            <span class="w-2 h-2 bg-black"></span> 내용 수집 방식
+                        </div>
+                        <div class="flex flex-col gap-2" id="contentModeGroup">
+                            <label
+                                class="inline-flex items-center gap-3 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-[#ddd] hover:border-black bg-white transition-all">
+                                <input type="radio" name="contentMode" value="preview" checked
+                                    class="accent-black w-4 h-4">
+                                <span class="flex-1">미리보기 <span class="text-[#888] text-[10px] font-normal block">가장 빠름
+                                        (권장)</span></span>
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-3 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-[#ddd] hover:border-black bg-white transition-all">
+                                <input type="radio" name="contentMode" value="full" class="accent-black w-4 h-4">
+                                <span class="flex-1">전체 내용 <span class="text-[#888] text-[10px] font-normal block">속도
+                                        느림</span></span>
+                            </label>
+                            <label
+                                class="inline-flex items-center gap-3 text-xs text-black cursor-pointer hover:text-accent font-bold p-2 border border-[#ddd] hover:border-black bg-white transition-all">
+                                <input type="radio" name="contentMode" value="none" class="accent-black w-4 h-4">
+                                <span class="flex-1">수집 안 함 <span class="text-[#888] text-[10px] font-normal block">제목만
+                                        수집</span></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Error Msg -->
+        <div class="bg-black text-[#FF5252] border-2 border-black p-4 rounded-none mb-6 hidden text-sm font-black shadow-[4px_4px_0_0_#FF5252]"
+            id="errorMsg"></div>
+
+        <!-- Confirm Card -->
+        <div class="border border-black bg-[#F0FFF4] p-4 mb-6 hidden rounded-none shadow-[4px_4px_0_0_black] flex flex-col md:flex-row items-center justify-between gap-4"
+            id="confirmCard">
+            <div class="text-sm font-medium text-black text-center md:text-left leading-snug" id="countText"></div>
+            <div class="flex gap-3 shrink-0">
+                <button
+                    class="px-5 h-9 border border-black rounded-none text-xs font-bold cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-black text-white hover:bg-accent hover:text-black hover:shadow-[2px_2px_0_0_black] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 active:shadow-none"
+                    onclick="startScraping()">
+                    <span class="mr-1.5">🚀</span> 수집 시작
+                </button>
+                <button
+                    class="px-5 h-9 border border-black rounded-none text-xs font-bold cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-white text-black hover:bg-[#ffcdd2] hover:text-[#d32f2f] hover:shadow-[2px_2px_0_0_black] hover:-translate-x-0.5 hover:-translate-y-0.5"
+                    onclick="cancelConfirm()">
+                    취소
+                </button>
+            </div>
+        </div>
+
+        <!-- Progress Card -->
+        <div class="bg-white border-2 border-black p-6 shadow-[4px_4px_0_0_black] mb-6 relative hidden rounded-none"
+            id="progressCard">
+            <div class="flex justify-between mb-3 text-sm font-black text-black uppercase tracking-wide">
+                <span id="progressText" class="flex items-center gap-2">
+                    <span class="w-3 h-3 bg-accent animate-pulse"></span> 스크래핑 진행 중...
+                </span>
+                <span id="progressPercent" class="bg-black text-white px-2 py-0.5 text-xs">0%</span>
+            </div>
+            <div class="w-full h-6 bg-[#f0f0f0] border-2 border-black rounded-none overflow-hidden relative">
+                <div class="h-full bg-accent rounded-none w-0 transition-[width] duration-300 relative [&.paused]:bg-[repeating-linear-gradient(45deg,#000,#000_10px,#333_10px,#333_20px)] border-r-2 border-black"
+                    id="progressBar"></div>
+            </div>
+            <div class="hidden gap-3 justify-center mt-5" id="progressControls">
+                <button
+                    class="px-6 h-10 border border-black rounded-none text-xs font-black cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-white text-black hover:bg-[#FFD700] hover:border-black hover:shadow-[3px_3px_0_0_black] hover:-translate-x-0.5 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    id="pauseBtn" onclick="togglePause()" disabled>
+                    <span class="mr-1.5 text-[10px]">║</span> 일시정지
+                </button>
+                <button
+                    class="px-6 h-10 border border-black rounded-none text-xs font-black cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-white text-[#FF5252] hover:bg-[#FF5252] hover:text-white hover:border-black hover:shadow-[3px_3px_0_0_black] hover:-translate-x-0.5 hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                    id="stopBtn" onclick="stopScraping()" disabled>
+                    <span class="mr-1.5 text-[10px]">■</span> 작업 중지
+                </button>
+            </div>
+        </div>
+
+        <!-- Results Card -->
+        <div class="bg-white border-2 border-black p-6 shadow-[4px_4px_0_0_black] mb-6 relative hidden rounded-none"
+            id="resultsCard">
+            <div class="flex justify-between items-center mb-5 flex-wrap gap-4 pb-4 border-b-2 border-black">
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-full self-stretch bg-black"></div>
+                    <h3 class="text-xl font-black m-0 uppercase tracking-tight flex items-center">
+                        <span class="inline-block w-3 h-3 bg-black mr-2"></span>
+                        수집 결과
+                        <span class="text-[#888] mx-2 text-sm font-normal">|</span>
+                        <span class="text-accent font-black" id="resultCount">0</span>
+                        <span class="text-xs font-bold text-[#666] ml-1">ITEMS</span>
+                    </h3>
+                </div>
+                <div class="flex gap-3">
+                    <button
+                        class="px-5 h-10 border-2 border-black rounded-none text-xs font-black cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-white text-black hover:bg-black hover:text-white hover:shadow-[4px_4px_0_0_#999] hover:-translate-x-0.5 hover:-translate-y-0.5"
+                        onclick="copyToClipboard()">📋 클립보드 복사</button>
+                    <button
+                        class="px-5 h-10 border-2 border-black rounded-none text-xs font-black cursor-pointer transition-all duration-200 whitespace-nowrap inline-flex items-center justify-center uppercase bg-[#00C853] text-black hover:bg-black hover:text-[#00C853] hover:shadow-[4px_4px_0_0_black] hover:-translate-x-0.5 hover:-translate-y-0.5 active:translate-x-0 active:translate-y-0 active:shadow-none"
+                        onclick="downloadExcel()">📥 Excel 다운로드</button>
+                </div>
+            </div>
+            <div class="overflow-x-auto border-2 border-black rounded-none">
+                <table id="resultsTable" class="w-full border-collapse text-xs">
+                    <thead>
+                        <tr id="tableHeader"
+                            class="[&>th]:bg-black [&>th]:text-white [&>th]:p-3 [&>th]:font-black [&>th]:text-left [&>th]:uppercase [&>th]:whitespace-nowrap [&>th]:border-r [&>th]:border-white/20 last:[&>th]:border-r-0">
+                        </tr>
+                    </thead>
+                    <tbody id="resultsBody"
+                        class="[&>tr>td]:p-3 [&>tr>td]:border-b-2 [&>tr>td]:border-[#eee] [&>tr>td]:text-black  [&>tr>td]:font-medium [&>tr>td]:align-top [&>tr:hover]:bg-[#f0f0f0] [&>tr:last-child>td]:border-b-0">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="fixed bottom-6 right-6 bg-black text-accent border-2 border-accent p-5 px-6 rounded-none text-sm font-black z-[9999] opacity-0 transition-all duration-300 translate-y-4 shadow-[6px_6px_0_0_#00C853] [&.show]:opacity-100 [&.show]:translate-y-0 flex items-center gap-3"
+        id="toast">
+        <span class="text-xl">🔔</span>
+        <span id="toastMsg"></span>
+    </div>
+
+    <script>
+        let scrapedResults = [];
+        let eventSource = null;
+        let activeFields = [];
+        let isPaused = false;
+        let firstDataReceived = false;
+        let totalPosts = 0;
+
+        const FIELD_ORDER = ['title', 'url', 'content', 'author', 'blog_name', 'date', 'likes', 'comments'];
+        const FIELD_LABELS = {
+            title: '제목', url: 'URL', content: '내용',
+            author: '작성자', blog_name: '블로그명', date: '날짜',
+            likes: '좋아요', comments: '댓글'
+        };
+
+        function showError(msg) {
+            const el = document.getElementById('errorMsg');
+            el.textContent = msg;
+            el.style.display = 'block';
+            setTimeout(() => { el.style.display = 'none'; }, 5000);
+        }
+
+        function showToast(msg) {
+            const el = document.getElementById('toast');
+            const msgEl = document.getElementById('toastMsg');
+            msgEl.textContent = msg;
+            el.classList.add('show');
+            setTimeout(() => { el.classList.remove('show'); }, 2500);
+        }
+
+        function getSelectedFields() {
+            const checkboxes = document.querySelectorAll('#fieldCheckboxes input[type="checkbox"]');
+            const fields = [];
+            checkboxes.forEach(function (cb) {
+                if (cb.checked) fields.push(cb.value);
+            });
+            return fields;
+        }
+
+        function getContentMode() {
+            const radio = document.querySelector('input[name="contentMode"]:checked');
+            return radio ? radio.value : 'preview';
+        }
+
+        function buildActiveFields() {
+            const fields = getSelectedFields();
+            const contentMode = getContentMode();
+            activeFields = [];
+            FIELD_ORDER.forEach(function (f) {
+                if (f === 'content') {
+                    if (contentMode !== 'none') activeFields.push('content');
+                } else if (fields.indexOf(f) !== -1) {
+                    activeFields.push(f);
+                }
+            });
+            return activeFields;
+        }
+
+        function buildTableHeaders() {
+            const headerRow = document.getElementById('tableHeader');
+            headerRow.innerHTML = '';
+            var th = document.createElement('th');
+            th.textContent = '#';
+            headerRow.appendChild(th);
+            activeFields.forEach(function (f) {
+                var th = document.createElement('th');
+                th.textContent = FIELD_LABELS[f] || f;
+                headerRow.appendChild(th);
+            });
+        }
+
+        function setFieldSelectionDisabled(disabled) {
+            var checkboxes = document.querySelectorAll('#fieldCheckboxes input[type="checkbox"]');
+            checkboxes.forEach(function (cb) {
+                if (cb.value !== 'title') cb.disabled = disabled;
+            });
+            var radios = document.querySelectorAll('#contentModeGroup input[type="radio"]');
+            radios.forEach(function (r) { r.disabled = disabled; });
+        }
+
+        async function searchCount() {
+            const keyword = document.getElementById('keyword').value.trim();
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            if (!keyword || !startDate || !endDate) {
+                showError('키워드, 시작일, 종료일을 모두 입력해주세요.');
+                return;
+            }
+
+            const btn = document.getElementById('searchBtn');
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner"></span>조회 중...';
+
+            try {
+                const resp = await fetch('/api/count', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ keyword, startDate, endDate }),
+                });
+                const data = await resp.json();
+
+                if (data.error) {
+                    showError(data.error);
+                    return;
+                }
+
+                document.getElementById('countText').innerHTML =
+                    `키워드 [ <span class="text-accent font-black">${keyword}</span> ]<br>총 <span class="font-black bg-black text-white px-1">${data.totalCount.toLocaleString()}</span>개의 게시물이 발견되었습니다.`;
+                document.getElementById('confirmCard').classList.remove('hidden');
+                document.getElementById('confirmCard').classList.add('flex');
+                document.getElementById('confirmCard').style.display = '';
+            } catch (e) {
+                showError('서버 연결에 실패했습니다. 서버가 실행 중인지 확인해주세요.');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '게시물 수 조회';
+            }
+        }
+
+        function cancelConfirm() {
+            document.getElementById('confirmCard').style.display = 'none';
+        }
+
+        function startScraping() {
+            const keyword = document.getElementById('keyword').value.trim();
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+
+            buildActiveFields();
+            buildTableHeaders();
+            setFieldSelectionDisabled(true);
+
+            document.getElementById('confirmCard').style.display = 'none';
+            document.getElementById('progressCard').style.display = 'block';
+            document.getElementById('resultsCard').style.display = 'block';
+
+            scrapedResults = [];
+            document.getElementById('resultsBody').innerHTML = '';
+            document.getElementById('resultCount').textContent = '0';
+
+            // 컨트롤 초기화
+            isPaused = false;
+            firstDataReceived = false;
+            totalPosts = 0;
+            var pauseBtn = document.getElementById('pauseBtn');
+            var stopBtn = document.getElementById('stopBtn');
+            pauseBtn.textContent = '⏸ 일시정지';
+            pauseBtn.disabled = true;
+            stopBtn.disabled = true;
+            document.getElementById('progressControls').style.display = 'flex';
+            document.getElementById('progressBar').classList.remove('paused');
+
+            const fields = getSelectedFields();
+            const contentMode = getContentMode();
+
+            const params = new URLSearchParams({ keyword, startDate, endDate });
+            params.set('fields', fields.join(','));
+            params.set('contentMode', contentMode);
+            eventSource = new EventSource(`/api/scrape?${params}`);
+
+            eventSource.addEventListener('init', function (event) {
+                const info = JSON.parse(event.data);
+                totalPosts = info.total || 0;
+                document.getElementById('progressText').textContent = `스크래핑 준비 중... (0/${totalPosts})`;
+                document.getElementById('progressPercent').textContent = '0%';
+                document.getElementById('progressBar').style.width = '0%';
+            });
+
+            eventSource.onmessage = function (event) {
+                const post = JSON.parse(event.data);
+                scrapedResults.push(post);
+
+                const idx = scrapedResults.length;
+                addTableRow(idx, post);
+
+                document.getElementById('resultCount').textContent = idx;
+
+                if (totalPosts > 0) {
+                    const pct = Math.round((idx / totalPosts) * 100);
+                    document.getElementById('progressPercent').textContent = pct + '%';
+                    document.getElementById('progressBar').style.width = pct + '%';
+                    if (!isPaused) {
+                        document.getElementById('progressText').textContent = `스크래핑 중... (${idx}/${totalPosts})`;
+                    }
+                } else if (!isPaused) {
+                    document.getElementById('progressText').textContent = `스크래핑 중... ${idx}건 완료`;
+                }
+
+                if (!firstDataReceived) {
+                    firstDataReceived = true;
+                    document.getElementById('pauseBtn').disabled = false;
+                    document.getElementById('stopBtn').disabled = false;
+                }
+            };
+
+            eventSource.addEventListener('done', function () {
+                eventSource.close();
+                const count = scrapedResults.length;
+                const label = totalPosts > 0 ? `(${count}/${totalPosts})` : `${count}건`;
+                document.getElementById('progressText').textContent = `스크래핑 완료! 총 ${label}`;
+                document.getElementById('progressPercent').textContent = '100%';
+                document.getElementById('progressBar').style.width = '100%';
+                document.getElementById('progressBar').classList.remove('paused');
+                document.getElementById('progressControls').style.display = 'none';
+                setFieldSelectionDisabled(false);
+                isPaused = false;
+                showToast(`스크래핑 완료! ${total}건 수집됨`);
+            });
+
+            eventSource.addEventListener('error', function (event) {
+                eventSource.close();
+                showError('스크래핑 중 오류가 발생했습니다.');
+                document.getElementById('progressText').textContent = '오류 발생';
+                document.getElementById('progressBar').classList.remove('paused');
+                document.getElementById('progressControls').style.display = 'none';
+                setFieldSelectionDisabled(false);
+                isPaused = false;
+            });
+
+            eventSource.addEventListener('stopped', function () {
+                eventSource.close();
+                const count = scrapedResults.length;
+                const label = totalPosts > 0 ? `(${count}/${totalPosts})` : `${count}건`;
+                document.getElementById('progressText').textContent = `스크래핑 중단됨 — ${label} 수집됨`;
+                document.getElementById('progressBar').classList.remove('paused');
+                document.getElementById('progressControls').style.display = 'none';
+                setFieldSelectionDisabled(false);
+                isPaused = false;
+                showToast(`스크래핑이 중단되었습니다. ${total}건 수집됨`);
+            });
+        }
+
+        async function togglePause() {
+            const pauseBtn = document.getElementById('pauseBtn');
+            pauseBtn.disabled = true;
+
+            try {
+                if (!isPaused) {
+                    // 일시정지 요청
+                    const resp = await fetch('/api/pause', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.status === 'paused') {
+                        isPaused = true;
+                        pauseBtn.textContent = '▶ 재개';
+                        document.getElementById('progressBar').classList.add('paused');
+                        const count = scrapedResults.length;
+                        const suffix = totalPosts > 0 ? ` (${count}/${totalPosts})` : ` ${count}건`;
+                        document.getElementById('progressText').textContent = `일시정지됨 —${suffix} 수집됨`;
+                    }
+                } else {
+                    // 재개 요청
+                    const resp = await fetch('/api/resume', { method: 'POST' });
+                    const data = await resp.json();
+                    if (data.status === 'resumed') {
+                        isPaused = false;
+                        pauseBtn.textContent = '⏸ 일시정지';
+                        document.getElementById('progressBar').classList.remove('paused');
+                        const count = scrapedResults.length;
+                        const suffix = totalPosts > 0 ? ` (${count}/${totalPosts})` : ` ${count}건 완료`;
+                        document.getElementById('progressText').textContent = `스크래핑 중...${suffix}`;
+                    }
+                }
+            } catch (e) {
+                showError('제어 요청 중 오류가 발생했습니다.');
+            } finally {
+                pauseBtn.disabled = false;
+            }
+        }
+
+        async function stopScraping() {
+            const stopBtn = document.getElementById('stopBtn');
+            const pauseBtn = document.getElementById('pauseBtn');
+            stopBtn.disabled = true;
+            pauseBtn.disabled = true;
+
+            try {
+                await fetch('/api/stop', { method: 'POST' });
+            } catch (e) {
+                // 에러가 나도 클라이언트 측에서 정리
+            }
+
+            // EventSource 닫기 (auto-reconnect 방지)
+            if (eventSource) {
+                eventSource.close();
+                eventSource = null;
+            }
+
+            const count = scrapedResults.length;
+            const label = totalPosts > 0 ? `(${count}/${totalPosts})` : `${count}건`;
+            document.getElementById('progressText').textContent = `스크래핑 중단됨 — ${label} 수집됨`;
+            document.getElementById('progressBar').classList.remove('paused');
+            document.getElementById('progressControls').style.display = 'none';
+            setFieldSelectionDisabled(false);
+            isPaused = false;
+            showToast(`스크래핑이 중단되었습니다. ${label} 수집됨`);
+        }
+
+        function addTableRow(idx, post) {
+            const tbody = document.getElementById('resultsBody');
+            const tr = document.createElement('tr');
+
+            var td = document.createElement('td');
+            td.className = 'num-cell';
+            td.textContent = idx;
+            tr.appendChild(td);
+
+            activeFields.forEach(function (f) {
+                var td = document.createElement('td');
+                if (f === 'url') {
+                    td.className = 'url-cell';
+                    var a = document.createElement('a');
+                    a.href = post.url || '';
+                    a.target = '_blank';
+                    a.rel = 'noopener';
+                    a.textContent = post.url || '';
+                    td.appendChild(a);
+                } else if (f === 'content') {
+                    td.className = 'content-cell';
+                    var content = post.content || '';
+                    var preview = content.substring(0, 200).replace(/\n/g, ' ');
+                    td.textContent = preview + (content.length > 200 ? '...' : '');
+                    td.title = content;
+                } else if (f === 'likes' || f === 'comments' || f === 'date') {
+                    td.className = 'num-cell';
+                    td.textContent = post[f] !== undefined ? post[f] : '';
+                } else {
+                    td.textContent = post[f] || '';
+                }
+                tr.appendChild(td);
+            });
+
+            tbody.appendChild(tr);
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function copyToClipboard() {
+            if (scrapedResults.length === 0) {
+                showError('복사할 결과가 없습니다.');
+                return;
+            }
+
+            var headers = activeFields.map(function (f) { return FIELD_LABELS[f] || f; });
+            var tsv = headers.join('\t') + '\n';
+            scrapedResults.forEach(function (r) {
+                var row = activeFields.map(function (f) {
+                    var val = r[f] !== undefined ? String(r[f]) : '';
+                    return val.replace(/\t/g, ' ').replace(/\n/g, ' ');
+                });
+                tsv += row.join('\t') + '\n';
+            });
+
+            navigator.clipboard.writeText(tsv).then(function () {
+                showToast('클립보드에 복사되었습니다! (탭 구분 형식)');
+            }).catch(function () {
+                var ta = document.createElement('textarea');
+                ta.value = tsv;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('클립보드에 복사되었습니다!');
+            });
+        }
+
+        async function downloadExcel() {
+            if (scrapedResults.length === 0) {
+                showError('다운로드할 결과가 없습니다.');
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/export-excel', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        results: scrapedResults,
+                        fields: getSelectedFields(),
+                        contentMode: getContentMode()
+                    }),
+                });
+
+                if (!resp.ok) {
+                    showError('Excel 파일 생성에 실패했습니다.');
+                    return;
+                }
+
+                const blob = await resp.blob();
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'blog_scraping_result.xlsx';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                showToast('Excel 파일 다운로드 시작!');
+            } catch (e) {
+                showError('다운로드 중 오류가 발생했습니다.');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const today = new Date();
+            const oneMonthAgo = new Date(today);
+            oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+
+            document.getElementById('endDate').value = formatDate(today);
+            document.getElementById('startDate').value = formatDate(oneMonthAgo);
+
+            buildActiveFields();
+            buildTableHeaders();
+        });
+
+        function formatDate(date) {
+            return date.toISOString().split('T')[0];
+        }
+
+        document.getElementById('keyword').addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') searchCount();
+        });
+
+        // ======= 필드 선택 토글 =======
+        let fieldSelectionActive = false;
+
+        function toggleFieldSelection() {
+            fieldSelectionActive = !fieldSelectionActive;
+            const section = document.getElementById('fieldSection');
+            const toggle = document.getElementById('fieldToggle');
+
+            if (fieldSelectionActive) {
+                section.classList.add('visible');
+                toggle.classList.add('active');
+            } else {
+                section.classList.remove('visible');
+                toggle.classList.remove('active');
+            }
+        }
+
+        // ======= 키워드 빌더 =======
+        let kbConditions = [];
+        let kbActive = false;
+
+        function toggleKeywordBuilder() {
+            kbActive = !kbActive;
+            const section = document.getElementById('kbSection');
+            const toggle = document.getElementById('kbToggle');
+            const keywordInput = document.getElementById('keyword');
+
+            if (kbActive) {
+                section.classList.add('visible');
+                toggle.classList.add('active');
+                keywordInput.readOnly = true;
+                keywordInput.style.backgroundColor = '#f0f0f0';
+                if (keywordInput.value.trim() && !document.getElementById('kbBase').value.trim()) {
+                    document.getElementById('kbBase').value = keywordInput.value.trim();
+                }
+                updateKeyword();
+            } else {
+                section.classList.remove('visible');
+                toggle.classList.remove('active');
+                keywordInput.readOnly = false;
+                keywordInput.style.backgroundColor = '';
+            }
+        }
+
+        function addCondition() {
+            const operatorSelect = document.getElementById('kbOperator');
+            const valueInput = document.getElementById('kbValue');
+            const type = operatorSelect.value;
+            let value = valueInput.value.trim();
+
+            if (!value) return;
+
+            if (type === 'exact') {
+                value = value.replace(/"/g, '');
+            } else if (type === 'include') {
+                value = value.replace(/[+]/g, '');
+            } else if (type === 'exclude') {
+                value = value.replace(/[-]/g, '');
+            } else if (type === 'or') {
+                value = value.replace(/[|]/g, '').trim();
+            }
+
+            if (!value) return;
+
+            kbConditions.push({ type, value });
+            valueInput.value = '';
+            valueInput.focus();
+            renderPills();
+            updateKeyword();
+        }
+
+        function removeCondition(index) {
+            kbConditions.splice(index, 1);
+            renderPills();
+            updateKeyword();
+        }
+
+        function renderPills() {
+            const container = document.getElementById('kbPills');
+            container.innerHTML = '';
+
+            const typeLabels = {
+                exact: '정확히',
+                include: '포함',
+                exclude: '제외',
+                or: 'OR'
+            };
+
+            kbConditions.forEach(function (cond, index) {
+                const pill = document.createElement('span');
+                pill.className = 'kb-pill';
+
+                const typeSpan = document.createElement('span');
+                typeSpan.className = 'kb-pill-type';
+                typeSpan.textContent = typeLabels[cond.type];
+
+                const valueSpan = document.createElement('span');
+                valueSpan.textContent = cond.value;
+
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'kb-pill-remove';
+                removeBtn.textContent = '\u00d7';
+                removeBtn.setAttribute('data-index', index);
+                removeBtn.onclick = function () { removeCondition(index); };
+
+                pill.appendChild(typeSpan);
+                pill.appendChild(valueSpan);
+                pill.appendChild(removeBtn);
+                container.appendChild(pill);
+            });
+        }
+
+        function assembleKeyword() {
+            const base = document.getElementById('kbBase').value.trim();
+            let parts = [];
+
+            if (base) {
+                parts.push(base);
+            }
+
+            kbConditions.forEach(function (cond) {
+                switch (cond.type) {
+                    case 'exact':
+                        parts.push('"' + cond.value + '"');
+                        break;
+                    case 'include':
+                        parts.push('+' + cond.value);
+                        break;
+                    case 'exclude':
+                        parts.push('-' + cond.value);
+                        break;
+                    case 'or':
+                        parts.push('| ' + cond.value);
+                        break;
+                }
+            });
+
+            return parts.join(' ');
+        }
+
+        function updateKeyword() {
+            const assembled = assembleKeyword();
+            const preview = document.getElementById('kbPreview');
+            const keywordInput = document.getElementById('keyword');
+
+            if (assembled) {
+                preview.textContent = assembled;
+                preview.classList.add('kb-preview-keyword');
+            } else {
+                preview.textContent = '키워드를 입력하면 여기에 미리보기가 표시됩니다';
+                preview.classList.remove('kb-preview-keyword');
+            }
+
+            if (kbActive) {
+                keywordInput.value = assembled;
+            }
+        }
+
+        function handleKbEnter(event) {
+            if (event.key === 'Enter') {
+                event.preventDefault();
+                event.stopPropagation();
+                addCondition();
+            }
+        }
+    </script>
+</body>
+
+</html>
