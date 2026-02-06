@@ -9,7 +9,6 @@ __pycache__/
 .ruff_cache/
 
 # Build artifacts
-*.spec
 
 # Images (screenshots)
 *.png
