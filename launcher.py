@@ -85,7 +85,8 @@ def check_for_update(state: dict) -> dict | None:
 
         zip_url = None
         for asset in data.get("assets", []):
-            if asset["name"].endswith(".zip"):
+            name = asset["name"]
+            if name.endswith(".zip") and "App" in name:
                 zip_url = asset["browser_download_url"]
                 break
 
@@ -179,7 +180,13 @@ def find_app_exe(app_dir: Path) -> Path | None:
         path = data.get("path", "")
         if not path:
             return None
-        exe_path = Path(path) / "App.exe"
+        base = Path(path)
+        exe_path = base / "App.exe"
+        if exe_path.exists():
+            return exe_path
+        nested = base / "App" / "App.exe"
+        if nested.exists():
+            return nested
         return exe_path
     except (json.JSONDecodeError, KeyError):
         return None

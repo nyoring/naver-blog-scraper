@@ -29,6 +29,11 @@ jobs:
           python-version: '3.12'
       - name: Install dependencies
         run: pip install -r requirements.txt
+      - name: Sync APP_VERSION with tag
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          (Get-Content config.py) -replace "APP_VERSION = `".*`"", "APP_VERSION = `"$version`"" | Set-Content config.py
+        shell: pwsh
       - name: Install Playwright browsers for bundling
         run: python -m playwright install --with-deps chromium
       - name: Build App.exe

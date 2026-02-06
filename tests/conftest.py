@@ -49,6 +49,11 @@ def mock_github_api():
         "name": "v1.1.0",
         "assets": [
             {
+                "name": "NaverBlogScraper-Launcher-v1.1.0.zip",
+                "browser_download_url": "https://github.com/nyoring/naver-blog-scraper/releases/download/v1.1.0/NaverBlogScraper-Launcher-v1.1.0.zip",
+                "size": 10000000,
+            },
+            {
                 "name": "NaverBlogScraper-App-v1.1.0.zip",
                 "browser_download_url": "https://github.com/nyoring/naver-blog-scraper/releases/download/v1.1.0/NaverBlogScraper-App-v1.1.0.zip",
                 "size": 50000000,
