@@ -77,19 +77,46 @@ def install_chromium(progress_callback=None):
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
-    process = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        env=env,
-    )
-
-    for line in iter(process.stdout.readline, ""):
-        line = line.strip()
-        if not line:
-            continue
+    try:
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            env=env,
+        )
+    except Exception as e:
         if progress_callback:
+            progress_callback(None, f"Failed to start installer: {e}")
+        try:
+            import app as app_module
+
+            if hasattr(app_module, "chromium_install_state"):
+                app_module.chromium_install_state["status"] = "error"
+                app_module.chromium_install_state["message"] = str(e)
+        except (ImportError, AttributeError):
+            pass
+        return
+
+    buf = b""
+    while True:
+        byte = process.stdout.read(1)
+        if not byte:
+            break
+        if byte in (b"\r", b"\n"):
+            line = buf.decode("utf-8", errors="replace").strip()
+            buf = b""
+            if not line:
+                continue
+            if progress_callback:
+                match = re.search(r"(\d+)%", line)
+                percent = int(match.group(1)) if match else None
+                progress_callback(percent, line)
+        else:
+            buf += byte
+
+    if buf:
+        line = buf.decode("utf-8", errors="replace").strip()
+        if line and progress_callback:
             match = re.search(r"(\d+)%", line)
             percent = int(match.group(1)) if match else None
             progress_callback(percent, line)
