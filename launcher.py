@@ -62,12 +62,12 @@ def save_state(launcher_dir: Path, state: dict):
         json.dump(state, f, indent=2)
 
 
-def check_for_update(state: dict) -> dict | None:
+def check_for_update(state: dict, force: bool = False) -> dict | None:
     try:
         req = request.Request(GITHUB_API_URL)
         req.add_header("Accept", "application/vnd.github.v3+json")
         etag = state.get("etag", "")
-        if etag:
+        if etag and not force:
             req.add_header("If-None-Match", etag)
 
         resp = request.urlopen(req, timeout=15)
@@ -80,7 +80,7 @@ def check_for_update(state: dict) -> dict | None:
 
         tag = data.get("tag_name", "")
         version = tag.lstrip("v")
-        if version == APP_VERSION:
+        if version == APP_VERSION and not force:
             return None
 
         zip_url = None
@@ -187,7 +187,7 @@ def find_app_exe(app_dir: Path) -> Path | None:
         nested = base / "App" / "App.exe"
         if nested.exists():
             return nested
-        return exe_path
+        return None
     except (json.JSONDecodeError, KeyError):
         return None
 
@@ -282,7 +282,11 @@ def main():
         launcher_dir = base_dir / LAUNCHER_DIR
         state = load_state(launcher_dir)
 
-        update_info = check_for_update(state)
+        app_exe = find_app_exe(base_dir / APP_DIR)
+        app_installed = app_exe is not None and app_exe.exists()
+
+        # force=True when app not installed: download even if versions match
+        update_info = check_for_update(state, force=not app_installed)
         save_state(launcher_dir, state)
 
         if update_info:
@@ -290,7 +294,10 @@ def main():
             zip_url = update_info["zip_url"]
             sha256 = update_info.get("sha256", "")
 
-            ui.set_status(f"Downloading {version}...")
+            if app_installed:
+                ui.set_status(f"Downloading update {version}...")
+            else:
+                ui.set_status(f"Installing application {version}...")
             dest = base_dir / LAUNCHER_DIR / f"{version}.zip"
             download_update(zip_url, dest, progress_callback=ui.set_progress)
 
@@ -305,7 +312,7 @@ def main():
                     release_lock(base_dir)
                     return
 
-            ui.set_status("Installing update...")
+            ui.set_status("Installing...")
             versions_dir = base_dir / VERSIONS_DIR
             install_path = extract_and_install(dest, version.lstrip("v"), versions_dir)
             atomic_swap_current(
@@ -313,16 +320,20 @@ def main():
             )
             cleanup_old_versions(versions_dir)
             dest.unlink(missing_ok=True)
-            ui.set_status("Update installed.")
+            ui.set_status("Installation complete.")
 
         ui.set_status("Launching application...")
         app_exe = find_app_exe(base_dir / APP_DIR)
         if app_exe and app_exe.exists():
             subprocess.Popen([str(app_exe)], cwd=str(app_exe.parent))
         else:
-            ui.set_status("App.exe not found.")
-            logger.error("App.exe not found at %s", app_exe)
-            time.sleep(2)
+            if not app_installed and not update_info:
+                ui.set_status("First launch requires internet to download the app.")
+                logger.error("App not installed and no update available (offline?)")
+            else:
+                ui.set_status("App.exe not found.")
+                logger.error("App.exe not found at %s", app_exe)
+            time.sleep(3)
 
     except Exception as e:
         logger.error("Launcher error: %s", e)

@@ -199,6 +199,7 @@ def test_find_app_exe_returns_correct_path(tmp_app_dir):
     app_dir = tmp_app_dir / "app"
     version_path = tmp_app_dir / "app" / "versions" / "1.1.0"
     version_path.mkdir(parents=True, exist_ok=True)
+    (version_path / "App.exe").write_bytes(b"fake exe")
 
     current = {"version": "1.1.0", "path": str(version_path)}
     (app_dir / "current.json").write_text(json.dumps(current), encoding="utf-8")
@@ -208,6 +209,32 @@ def test_find_app_exe_returns_correct_path(tmp_app_dir):
     assert result == version_path / "App.exe"
 
     assert find_app_exe(tmp_app_dir / "nonexistent") is None
+
+
+def test_find_app_exe_returns_none_when_exe_missing(tmp_app_dir):
+    app_dir = tmp_app_dir / "app"
+    version_path = tmp_app_dir / "app" / "versions" / "1.1.0"
+    version_path.mkdir(parents=True, exist_ok=True)
+
+    current = {"version": "1.1.0", "path": str(version_path)}
+    (app_dir / "current.json").write_text(json.dumps(current), encoding="utf-8")
+
+    assert find_app_exe(app_dir) is None
+
+
+def test_find_app_exe_finds_nested_exe(tmp_app_dir):
+    app_dir = tmp_app_dir / "app"
+    version_path = tmp_app_dir / "app" / "versions" / "1.2.0"
+    nested_dir = version_path / "App"
+    nested_dir.mkdir(parents=True, exist_ok=True)
+    (nested_dir / "App.exe").write_bytes(b"fake exe")
+
+    current = {"version": "1.2.0", "path": str(version_path)}
+    (app_dir / "current.json").write_text(json.dumps(current), encoding="utf-8")
+
+    result = find_app_exe(app_dir)
+    assert result is not None
+    assert result == nested_dir / "App.exe"
 
 
 def test_single_instance_lock(tmp_path):
