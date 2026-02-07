@@ -100,7 +100,13 @@ def install_chromium(progress_callback=None):
         import app as app_module
 
         if hasattr(app_module, "chromium_install_state"):
-            app_module.chromium_install_state["status"] = "complete"
+            if process.returncode == 0:
+                app_module.chromium_install_state["status"] = "done"
+            else:
+                app_module.chromium_install_state["status"] = "error"
+                app_module.chromium_install_state["message"] = (
+                    f"Chromium install failed (exit code {process.returncode})"
+                )
     except (ImportError, AttributeError):
         pass
 
@@ -131,7 +137,22 @@ def main():
         except (ImportError, AttributeError):
             pass
 
-        install_thread = threading.Thread(target=install_chromium, daemon=True)
+        def _on_progress(percent, message):
+            try:
+                import app as _app
+
+                if hasattr(_app, "chromium_install_state"):
+                    if percent is not None:
+                        _app.chromium_install_state["percent"] = percent
+                    _app.chromium_install_state["message"] = message
+            except (ImportError, AttributeError):
+                pass
+
+        install_thread = threading.Thread(
+            target=install_chromium,
+            args=(_on_progress,),
+            daemon=True,
+        )
         install_thread.start()
         open_url = f"{url}/setup"
     else:
