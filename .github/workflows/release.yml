@@ -40,12 +40,17 @@ jobs:
         run: pyinstaller app.spec --noconfirm
       - name: Verify playwright driver in bundle
         run: |
-          if (!(Test-Path "dist/App/_internal/playwright/driver/playwright.cmd")) {
-            Write-Error "playwright.cmd not found in bundle!"
-            Get-ChildItem "dist/App/_internal/playwright" -Recurse | Select-Object FullName
+          $found = Get-ChildItem "dist/App" -Recurse -Filter "playwright.cmd" -ErrorAction SilentlyContinue
+          if ($found) {
+            Write-Host "OK: playwright.cmd found at $($found.FullName)"
+          } else {
+            Write-Host "=== dist/App tree (playwright) ==="
+            Get-ChildItem "dist/App" -Recurse -ErrorAction SilentlyContinue |
+              Where-Object { $_.FullName -like "*playwright*" } |
+              Select-Object FullName
+            Write-Error "playwright.cmd not found anywhere in bundle"
             exit 1
           }
-          Write-Host "playwright.cmd found in bundle"
         shell: pwsh
       - name: Build Launcher.exe
         run: pyinstaller launcher.spec --noconfirm

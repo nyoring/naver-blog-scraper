@@ -1,14 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
-import os
 from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 playwright_datas, playwright_binaries, playwright_hiddenimports = collect_all('playwright')
 
 import playwright
-_pw_driver = str(Path(playwright.__file__).parent / 'driver')
-if os.path.isdir(_pw_driver):
-    playwright_datas.append((_pw_driver, 'playwright/driver'))
+_pw_driver_dir = Path(playwright.__file__).parent / 'driver'
+_pw_driver_files = []
+if _pw_driver_dir.is_dir():
+    for _f in _pw_driver_dir.rglob('*'):
+        if _f.is_file():
+            _rel = str(Path('playwright') / _f.parent.relative_to(_pw_driver_dir.parent))
+            _pw_driver_files.append((str(_f), _rel))
 
 a = Analysis(
     ['app_entry.py'],
@@ -17,6 +20,7 @@ a = Analysis(
     datas=[
         ('templates', 'templates'),
         *playwright_datas,
+        *_pw_driver_files,
     ],
     hiddenimports=[
         'waitress',
