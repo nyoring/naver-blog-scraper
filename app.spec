@@ -1,7 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
+import os
+from pathlib import Path
 from PyInstaller.utils.hooks import collect_all
 
 playwright_datas, playwright_binaries, playwright_hiddenimports = collect_all('playwright')
+
+import playwright
+_pw_driver = str(Path(playwright.__file__).parent / 'driver')
+if os.path.isdir(_pw_driver):
+    playwright_datas.append((_pw_driver, 'playwright/driver'))
 
 a = Analysis(
     ['app_entry.py'],

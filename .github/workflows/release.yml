@@ -38,6 +38,15 @@ jobs:
         run: python -m playwright install --with-deps chromium
       - name: Build App.exe
         run: pyinstaller app.spec --noconfirm
+      - name: Verify playwright driver in bundle
+        run: |
+          if (!(Test-Path "dist/App/_internal/playwright/driver/playwright.cmd")) {
+            Write-Error "playwright.cmd not found in bundle!"
+            Get-ChildItem "dist/App/_internal/playwright" -Recurse | Select-Object FullName
+            exit 1
+          }
+          Write-Host "playwright.cmd found in bundle"
+        shell: pwsh
       - name: Build Launcher.exe
         run: pyinstaller launcher.spec --noconfirm
       - name: Create release zip
