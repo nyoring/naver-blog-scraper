@@ -64,11 +64,23 @@ def install_chromium(progress_callback=None):
         browsers_path = str(get_app_data_dir() / BROWSERS_DIR)
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
-    if is_frozen():
+    try:
+        from playwright._impl._driver import compute_driver_executable
+
+        node_bin, cli_js = compute_driver_executable()
+    except Exception:
+        node_bin, cli_js = None, None
+
+    if node_bin and Path(node_bin).exists():
+        cmd = [node_bin, cli_js, "install", "chromium"]
+    elif is_frozen():
         driver_dir = Path(sys._MEIPASS) / "playwright" / "driver"
-        node_exe = driver_dir / "node.exe"
-        cli_js = driver_dir / "package" / "cli.js"
-        cmd = [str(node_exe), str(cli_js), "install", "chromium"]
+        if sys.platform == "win32":
+            node = driver_dir / "node.exe"
+        else:
+            node = driver_dir / "node"
+        cli = driver_dir / "package" / "cli.js"
+        cmd = [str(node), str(cli), "install", "chromium"]
     else:
         cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
 
