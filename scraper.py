@@ -120,6 +120,16 @@ def scrape_post_detail(
             content = _extract_content(content_frame)
             result["content"] = content
 
+        # 좋아요/댓글 영역은 비동기 로드됨 — 렌더링 대기
+        if fields is None or "likes" in fields or "comments" in fields:
+            try:
+                content_frame.wait_for_selector(
+                    "span.u_likeit_list_count._count, #floating_bottom_commentCount",
+                    timeout=5000,
+                )
+            except Exception:
+                pass  # 타임아웃 시에도 추출 시도
+
         # 좋아요 수 추출 (필드 선택에 포함된 경우에만)
         if fields is None or "likes" in fields:
             likes = _extract_likes(content_frame)
@@ -315,15 +325,15 @@ def _extract_content(frame) -> str:
 def _extract_likes(frame) -> int:
     """좋아요(공감) 수 추출"""
     try:
-        # 1순위: 공감 합계 (u_likeit_text _count) — 네이버 블로그 현재 구조
-        el = frame.query_selector("span.u_likeit_text._count")
+        # 1순위: 공감 리스트 카운트 — 실제 네이버 블로그 DOM에서 확인된 셀렉터
+        el = frame.query_selector("span.u_likeit_list_count._count")
         if el:
             text = el.inner_text().strip()
             if text.isdigit():
                 return int(text)
 
-        # 2순위: 공감 리스트 첫 번째 카운트 (개별 리액션 중 '좋아요')
-        el = frame.query_selector("span.u_likeit_list_count._count")
+        # 2순위: 공감 합계 텍스트 (일부 블로그 스킨)
+        el = frame.query_selector("span.u_likeit_text._count")
         if el:
             text = el.inner_text().strip()
             if text.isdigit():
@@ -336,6 +346,17 @@ def _extract_likes(frame) -> int:
             if text.isdigit():
                 return int(text)
 
+        # 4순위: 모든 공감 카운트 합산 (여러 리액션이 있는 경우)
+        elements = frame.query_selector_all("span.u_likeit_list_count._count")
+        if elements:
+            total = 0
+            for elem in elements:
+                text = elem.inner_text().strip()
+                if text.isdigit():
+                    total += int(text)
+            if total > 0:
+                return total
+
         return 0
     except Exception:
         return 0
@@ -344,7 +365,14 @@ def _extract_likes(frame) -> int:
 def _extract_comments(frame) -> int:
     """댓글 수 추출"""
     try:
-        # 1순위: a.btn_comment 에서 "댓글 N" 추출
+        # 1순위: floating_bottom_commentCount — 실제 네이버 블로그 DOM에서 확인된 셀렉터
+        el = frame.query_selector("#floating_bottom_commentCount")
+        if el:
+            text = el.inner_text().strip()
+            if text.isdigit():
+                return int(text)
+
+        # 2순위: a.btn_comment 에서 "댓글 N" 추출
         el = frame.query_selector("a.btn_comment")
         if el:
             text = el.inner_text().strip()
@@ -352,7 +380,7 @@ def _extract_comments(frame) -> int:
             if match:
                 return int(match.group(1))
 
-        # 2순위: span.comment_wrap 에서 추출
+        # 3순위: span.comment_wrap 에서 추출
         el = frame.query_selector("span.comment_wrap")
         if el:
             text = el.inner_text().strip()
@@ -360,7 +388,7 @@ def _extract_comments(frame) -> int:
             if match:
                 return int(match.group(1))
 
-        # 3순위: 모든 요소에서 "댓글 N" 패턴 탐색
+        # 4순위: 모든 요소에서 "댓글 N" 패턴 탐색
         elements = frame.query_selector_all("a, button, span")
         for elem in elements:
             text = elem.inner_text().strip()

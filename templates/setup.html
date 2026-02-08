@@ -58,7 +58,7 @@
                     <h2 class="text-xl font-black text-black uppercase tracking-tight">브라우저 엔진 설치</h2>
                 </div>
 
-                <p class="text-sm text-text-sub leading-relaxed mb-6" id="statusMsg">
+                <p class="text-sm text-text-sub leading-relaxed mb-6 overflow-hidden text-ellipsis whitespace-nowrap max-w-full" id="statusMsg">
                     처음 실행 시 Chromium 브라우저를 다운로드합니다. (~400MB)
                 </p>
 
@@ -100,7 +100,10 @@
             document.getElementById('progressBar').style.width = data.percent + '%';
             document.getElementById('progressPercent').textContent = data.percent + '%';
             if (data.message) {
-                document.getElementById('statusMsg').textContent = data.message;
+                // Strip block chars (█░▓) and collapse whitespace from Playwright terminal output
+                let msg = data.message.replace(/[█░▓▏▎▍▌▋▊▉\u2580-\u259F]+/g, '').replace(/\s+/g, ' ').trim();
+                if (!msg) msg = 'Chromium 다운로드 중... ' + data.percent + '%';
+                document.getElementById('statusMsg').textContent = msg;
             }
         };
         es.addEventListener('done', function() {
