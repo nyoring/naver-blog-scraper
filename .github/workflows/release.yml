@@ -57,15 +57,22 @@ jobs:
           Get-ChildItem "dist/App" -Recurse -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -like "*playwright*" } |
             ForEach-Object { Write-Host $_.FullName }
-          Write-Host "=== Searching for playwright.cmd ==="
-          $found = Get-ChildItem "dist/App" -Recurse -Filter "playwright.cmd" -ErrorAction SilentlyContinue
-          if ($found) {
-            Write-Host "OK: $($found.FullName)"
+
+          Write-Host "=== Checking node.exe ==="
+          $node = Get-ChildItem "dist/App" -Recurse -Filter "node.exe" -ErrorAction SilentlyContinue
+          if ($node) {
+            Write-Host "OK: $($node.FullName)"
           } else {
-            Write-Host "=== Searching for node.exe in bundle ==="
-            $node = Get-ChildItem "dist/App" -Recurse -Filter "node.exe" -ErrorAction SilentlyContinue
-            if ($node) { Write-Host "node.exe at: $($node.FullName)" }
-            Write-Error "playwright.cmd not found"
+            Write-Error "node.exe not found in bundle"
+            exit 1
+          }
+
+          Write-Host "=== Checking cli.js ==="
+          $cli = Get-ChildItem "dist/App" -Recurse -Filter "cli.js" -ErrorAction SilentlyContinue
+          if ($cli) {
+            Write-Host "OK: $($cli.FullName)"
+          } else {
+            Write-Error "cli.js not found in bundle"
             exit 1
           }
         shell: pwsh
