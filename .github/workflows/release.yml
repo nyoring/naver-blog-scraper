@@ -36,19 +36,36 @@ jobs:
         shell: pwsh
       - name: Install Playwright browsers for bundling
         run: python -m playwright install --with-deps chromium
+      - name: Debug playwright package
+        run: |
+          python -c "
+          import playwright; from pathlib import Path
+          p = Path(playwright.__file__).parent
+          print('Package dir:', p)
+          driver = p / 'driver'
+          print('Driver dir exists:', driver.is_dir())
+          if driver.is_dir():
+              for f in sorted(driver.rglob('*')):
+                  tag = 'FILE' if f.is_file() else 'DIR'
+                  print(f'  [{tag}] {f.relative_to(p)}')
+          "
       - name: Build App.exe
         run: pyinstaller app.spec --noconfirm
       - name: Verify playwright driver in bundle
         run: |
+          Write-Host "=== All playwright files in bundle ==="
+          Get-ChildItem "dist/App" -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.FullName -like "*playwright*" } |
+            ForEach-Object { Write-Host $_.FullName }
+          Write-Host "=== Searching for playwright.cmd ==="
           $found = Get-ChildItem "dist/App" -Recurse -Filter "playwright.cmd" -ErrorAction SilentlyContinue
           if ($found) {
-            Write-Host "OK: playwright.cmd found at $($found.FullName)"
+            Write-Host "OK: $($found.FullName)"
           } else {
-            Write-Host "=== dist/App tree (playwright) ==="
-            Get-ChildItem "dist/App" -Recurse -ErrorAction SilentlyContinue |
-              Where-Object { $_.FullName -like "*playwright*" } |
-              Select-Object FullName
-            Write-Error "playwright.cmd not found anywhere in bundle"
+            Write-Host "=== Searching for node.exe in bundle ==="
+            $node = Get-ChildItem "dist/App" -Recurse -Filter "node.exe" -ErrorAction SilentlyContinue
+            if ($node) { Write-Host "node.exe at: $($node.FullName)" }
+            Write-Error "playwright.cmd not found"
             exit 1
           }
         shell: pwsh
