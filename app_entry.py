@@ -64,25 +64,66 @@ def install_chromium(progress_callback=None):
         browsers_path = str(get_app_data_dir() / BROWSERS_DIR)
         os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
 
+    cmd = None
+    debug_info = []
+
+    # Strategy 1: use playwright's own driver locator
     try:
         from playwright._impl._driver import compute_driver_executable
 
         node_bin, cli_js = compute_driver_executable()
-    except Exception:
-        node_bin, cli_js = None, None
+        debug_info.append(f"compute_driver: node={node_bin}, cli={cli_js}")
+        debug_info.append(f"node exists={Path(node_bin).exists()}")
+        if Path(node_bin).exists():
+            cmd = [node_bin, cli_js, "install", "chromium"]
+    except Exception as exc:
+        debug_info.append(f"compute_driver failed: {exc}")
 
-    if node_bin and Path(node_bin).exists():
-        cmd = [node_bin, cli_js, "install", "chromium"]
-    elif is_frozen():
-        driver_dir = Path(sys._MEIPASS) / "playwright" / "driver"
-        if sys.platform == "win32":
-            node = driver_dir / "node.exe"
-        else:
-            node = driver_dir / "node"
+    # Strategy 2: frozen fallback using _MEIPASS
+    if cmd is None and is_frozen():
+        base = Path(sys._MEIPASS)
+        driver_dir = base / "playwright" / "driver"
+        node_name = "node.exe" if sys.platform == "win32" else "node"
+        node = driver_dir / node_name
         cli = driver_dir / "package" / "cli.js"
-        cmd = [str(node), str(cli), "install", "chromium"]
-    else:
+        debug_info.append(f"frozen fallback: _MEIPASS={base}")
+        debug_info.append(f"driver_dir exists={driver_dir.exists()}")
+        debug_info.append(f"node={node}, exists={node.exists()}")
+        debug_info.append(f"cli={cli}, exists={cli.exists()}")
+        if driver_dir.exists():
+            contents = list(driver_dir.iterdir())
+            debug_info.append(f"driver_dir contents: {[c.name for c in contents]}")
+        if base.exists():
+            pw_dir = base / "playwright"
+            debug_info.append(f"playwright dir exists={pw_dir.exists()}")
+            if pw_dir.exists():
+                pw_contents = list(pw_dir.iterdir())
+                debug_info.append(
+                    f"playwright dir contents: {[c.name for c in pw_contents]}"
+                )
+        if node.exists():
+            cmd = [str(node), str(cli), "install", "chromium"]
+
+    # Strategy 3: non-frozen fallback
+    if cmd is None and not is_frozen():
         cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+
+    debug_msg = " | ".join(debug_info)
+    print(f"[install_chromium] {debug_msg}", flush=True)
+
+    if cmd is None:
+        err = f"Cannot find playwright driver. Debug: {debug_msg}"
+        if progress_callback:
+            progress_callback(None, err)
+        try:
+            import app as app_module
+
+            if hasattr(app_module, "chromium_install_state"):
+                app_module.chromium_install_state["status"] = "error"
+                app_module.chromium_install_state["message"] = err
+        except (ImportError, AttributeError):
+            pass
+        return
 
     env = os.environ.copy()
     env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
@@ -95,8 +136,9 @@ def install_chromium(progress_callback=None):
             env=env,
         )
     except Exception as e:
+        err_detail = f"Failed to start installer: {e} | cmd={cmd} | {debug_msg}"
         if progress_callback:
-            progress_callback(None, f"Failed to start installer: {e}")
+            progress_callback(None, err_detail)
         try:
             import app as app_module
 

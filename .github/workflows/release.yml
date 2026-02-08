@@ -83,6 +83,23 @@ jobs:
           Compress-Archive -Path "dist/App/*" -DestinationPath "NaverBlogScraper-App-${{ github.ref_name }}.zip"
           Compress-Archive -Path "dist/Launcher/*" -DestinationPath "NaverBlogScraper-Launcher-${{ github.ref_name }}.zip"
         shell: pwsh
+      - name: Verify ZIP contents
+        run: |
+          Write-Host "=== Verifying ZIP contains playwright driver ==="
+          $zip = "NaverBlogScraper-App-${{ github.ref_name }}.zip"
+          $entries = [System.IO.Compression.ZipFile]::OpenRead($zip).Entries | ForEach-Object { $_.FullName }
+          $nodeInZip = $entries | Where-Object { $_ -like "*node.exe" }
+          $cliInZip = $entries | Where-Object { $_ -like "*cli.js" }
+          Write-Host "node.exe in ZIP: $nodeInZip"
+          Write-Host "cli.js in ZIP: $cliInZip"
+          if (-not $nodeInZip) {
+            Write-Error "FATAL: node.exe missing from release ZIP!"
+            Write-Host "=== All entries in ZIP ==="
+            $entries | ForEach-Object { Write-Host "  $_" }
+            exit 1
+          }
+          Write-Host "ZIP verification passed"
+        shell: pwsh
       - name: Generate SHA256
         run: |
           $appHash = (Get-FileHash "NaverBlogScraper-App-${{ github.ref_name }}.zip" -Algorithm SHA256).Hash
