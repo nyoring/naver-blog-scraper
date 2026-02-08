@@ -203,6 +203,11 @@ def main():
     from waitress import serve
 
     flask_app = create_app()
+
+    # Playwright가 커스텀 경로의 브라우저를 찾을 수 있도록 항상 설정
+    if is_frozen() and not os.environ.get("PLAYWRIGHT_BROWSERS_PATH"):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(get_app_data_dir() / BROWSERS_DIR)
+
     chromium_ok = check_chromium_available()
     port = find_available_port()
     url = f"http://{DEFAULT_HOST}:{port}"

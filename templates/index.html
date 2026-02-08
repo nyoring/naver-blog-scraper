@@ -591,7 +591,7 @@
                 document.getElementById('progressControls').style.display = 'none';
                 setFieldSelectionDisabled(false);
                 isPaused = false;
-                showToast(`스크래핑 완료! ${total}건 수집됨`);
+                showToast(`스크래핑 완료! ${count}건 수집됨`);
             });
 
             eventSource.addEventListener('error', function (event) {
@@ -613,7 +613,7 @@
                 document.getElementById('progressControls').style.display = 'none';
                 setFieldSelectionDisabled(false);
                 isPaused = false;
-                showToast(`스크래핑이 중단되었습니다. ${total}건 수집됨`);
+                showToast(`스크래핑이 중단되었습니다. ${count}건 수집됨`);
             });
         }
 
